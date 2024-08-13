@@ -1,48 +1,83 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
+import { PrismaService } from 'prisma/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
-import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class ProductsService {
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async create(createProductDto: CreateProductDto) {
     try {
-      return await this.prismaService.product.create({ data: createProductDto });
+      return await this.prisma.product.create({
+        data: createProductDto,
+      });
     } catch (error) {
-      throw new BadRequestException('Invalid input');
+      throw new HttpException('Failed to create product', HttpStatus.NOT_ACCEPTABLE);
     }
   }
 
   async findAll() {
-    return this.prismaService.product.findMany();
+    try {
+      return await this.prisma.product.findMany();
+    } catch (error) {
+      throw new HttpException('Failed to retrieve products', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 
   async findOne(id: number) {
     try {
-      return await this.prismaService.product.findUnique({ where: { id } });
+      const product = await this.prisma.product.findUnique({
+        where: { id },
+      });
+      if (!product) {
+        throw new HttpException('Product with ID ${id} not found', HttpStatus.NOT_FOUND);
+      }
+      return product;
     } catch (error) {
-      throw new NotFoundException('Product not found');
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException('Failed to retrieve product', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
   async update(id: number, updateProductDto: UpdateProductDto) {
     try {
-      return await this.prismaService.product.update({
+      const product = await this.prisma.product.findUnique({
+        where: { id },
+      });
+      if (!product) {
+        throw new HttpException('Product with ID ${id} not found', HttpStatus.NOT_FOUND);
+      }
+      return await this.prisma.product.update({
         where: { id },
         data: updateProductDto,
       });
     } catch (error) {
-      throw new BadRequestException('Invalid input');
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException('Failed to update product', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
   async remove(id: number) {
     try {
-      return await this.prismaService.product.delete({ where: { id } });
+      const product = await this.prisma.product.findUnique({
+        where: { id },
+      });
+      if (!product) {
+        throw new HttpException('Product with ID ${id} not found', HttpStatus.NOT_FOUND);
+      }
+      return await this.prisma.product.delete({
+        where: { id },
+      });
     } catch (error) {
-      throw new BadRequestException('Invalid input');
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException('Failed to delete product', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 }

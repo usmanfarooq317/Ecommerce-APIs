@@ -1,74 +1,107 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
+import { PrismaService } from 'prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
-import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async create(createOrderDto: CreateOrderDto) {
-    const product = await this.prismaService.product.findUnique({
-      where: { id: createOrderDto.productId },
-    });
-
-    if (!product) {
-      throw new BadRequestException('Product not found');
+    try {
+      const product = await this.prisma.product.findUnique({
+        where: { id: createOrderDto.productId },
+      });
+      if (!product) {
+        throw new HttpException('Product with ID ${createOrderDto.productId} not found', HttpStatus.NOT_FOUND);
+      }
+      const totalPrice = product.price * createOrderDto.quantity;
+      return await this.prisma.order.create({
+        data: {
+          ...createOrderDto,
+          totalPrice,
+        },
+      });
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      console.error('Failed to create order:', error);
+      throw new HttpException('Failed to create order', HttpStatus.INTERNAL_SERVER_ERROR);
     }
-
-    const totalPrice = product.price * createOrderDto.quantity;
-
-    return this.prismaService.order.create({
-      data: {
-        ...createOrderDto,
-        totalPrice,
-      },
-    });
   }
 
   async findAll() {
-    return this.prismaService.order.findMany();
+    try {
+      return await this.prisma.order.findMany();
+    } catch (error) {
+      throw new HttpException('Failed to retrieve orders', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 
   async findOne(id: number) {
-    const order = await this.prismaService.order.findUnique({ where: { id } });
-    if (!order) {
-      throw new NotFoundException('Order not found');
+    try {
+      const order = await this.prisma.order.findUnique({
+        where: { id },
+      });
+      if (!order) {
+        throw new HttpException('Order with ID ${id} not found', HttpStatus.NOT_FOUND);
+      }
+      return order;
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException('Failed to retrieve order', HttpStatus.INTERNAL_SERVER_ERROR);
     }
-    return order;
   }
 
   async update(id: number, updateOrderDto: UpdateOrderDto) {
-    const order = await this.prismaService.order.findUnique({ where: { id } });
-
-    if (!order) {
-      throw new NotFoundException('Order not found');
+    try {
+      const order = await this.prisma.order.findUnique({
+        where: { id },
+      });
+      if (!order) {
+        throw new HttpException('Order with ID ${id} not found', HttpStatus.NOT_FOUND);
+      }
+      const product = await this.prisma.product.findUnique({
+        where: { id: updateOrderDto.productId },
+      });
+      if (!product) {
+        throw new HttpException('Product with ID ${updateOrderDto.productId} not found', HttpStatus.NOT_FOUND);
+      }
+      const totalPrice = product.price * updateOrderDto.quantity;
+      return await this.prisma.order.update({
+        where: { id },
+        data: {
+          ...updateOrderDto,
+          totalPrice,
+        },
+      });
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException('Failed to update order', HttpStatus.INTERNAL_SERVER_ERROR);
     }
-
-    const product = await this.prismaService.product.findUnique({
-      where: { id: updateOrderDto.productId },
-    });
-
-    if (!product) {
-      throw new BadRequestException('Product not found');
-    }
-
-    const totalPrice = product.price * updateOrderDto.quantity;
-
-    return this.prismaService.order.update({
-      where: { id },
-      data: {
-        ...updateOrderDto,
-        totalPrice,
-      },
-    });
   }
 
   async remove(id: number) {
-    const order = await this.prismaService.order.findUnique({ where: { id } });
-    if (!order) {
-      throw new NotFoundException('Order not found');
+    try {
+      const order = await this.prisma.order.findUnique({
+        where: { id },
+      });
+      if (!order) {
+        throw new HttpException('Order with ID ${id} not found', HttpStatus.NOT_FOUND);
+      }
+      return await this.prisma.order.delete({
+        where: { id },
+      });
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException('Failed to delete order', HttpStatus.INTERNAL_SERVER_ERROR);
     }
-    return this.prismaService.order.delete({ where: { id } });
   }
 }
